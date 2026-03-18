@@ -309,7 +309,7 @@ def playlist():
     with yt_dlp.YoutubeDL(ydl_opts) as ydl:
         ydl.download([url])
 
-    return "Playlist download started (check server logs)"
+    return "Playlist download started (check server)"
 
 
 # ================= RUN =================
