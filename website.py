@@ -20,12 +20,21 @@ def detect_platform(url):
         return "Unknown ❌ Not Supported"
 
 
+# ================= HELPER (COOKIES SAFE MODE) =================
+def get_ydl_opts(base_opts):
+    """
+    Adds cookies.txt automatically if present
+    """
+    if os.path.exists("cookies.txt"):
+        base_opts["cookiefile"] = "cookies.txt"
+    return base_opts
+
+
 # ================= WEBSITE =================
 @app.route("/")
 def home():
     return '''
 <html>
-
 <head>
 <title>DownloadIt 🚀</title>
 
@@ -37,7 +46,6 @@ background: linear-gradient(135deg,#0f172a,#1e293b);
 color:white;
 }
 
-/* NAVBAR */
 .navbar{
 background:#020617;
 padding:15px 30px;
@@ -57,7 +65,6 @@ font-size:14px;
 opacity:0.7;
 }
 
-/* HEADER */
 .header{
 padding:20px;
 text-align:center;
@@ -65,7 +72,6 @@ font-size:28px;
 font-weight:bold;
 }
 
-/* NAV */
 .nav{
 display:flex;
 justify-content:center;
@@ -86,7 +92,6 @@ color:white;
 background:#38bdf8;
 }
 
-/* BOX */
 .section{
 display:none;
 background:#1e293b;
@@ -100,7 +105,6 @@ border-radius:12px;
 display:block;
 }
 
-/* INPUT */
 input{
 width:100%;
 padding:12px;
@@ -109,7 +113,6 @@ border:none;
 border-radius:6px;
 }
 
-/* BUTTON */
 .download-btn{
 margin-top:10px;
 padding:12px;
@@ -125,7 +128,6 @@ font-weight:bold;
 background:#0ea5e9;
 }
 
-/* SELECT */
 select{
 width:100%;
 padding:10px;
@@ -133,7 +135,6 @@ margin-top:10px;
 border-radius:6px;
 }
 
-/* FOOTER */
 .footer{
 position:fixed;
 bottom:0;
@@ -246,7 +247,7 @@ def check():
     return detect_platform(url)
 
 
-# ================= VIDEO DOWNLOAD (FIXED) =================
+# ================= VIDEO DOWNLOAD =================
 @app.route("/download_video", methods=["POST"])
 def video():
     url = request.form["url"]
@@ -263,10 +264,10 @@ def video():
 
     filename = "video.mp4"
 
-    ydl_opts = {
+    ydl_opts = get_ydl_opts({
         'format': fmt,
         'outtmpl': filename
-    }
+    })
 
     with yt_dlp.YoutubeDL(ydl_opts) as ydl:
         ydl.download([url])
@@ -281,14 +282,14 @@ def mp3():
 
     filename = "audio.mp3"
 
-    ydl_opts = {
+    ydl_opts = get_ydl_opts({
         'format': 'bestaudio',
         'outtmpl': 'audio.%(ext)s',
         'postprocessors': [{
             'key': 'FFmpegExtractAudio',
             'preferredcodec': 'mp3'
         }]
-    }
+    })
 
     with yt_dlp.YoutubeDL(ydl_opts) as ydl:
         ydl.download([url])
@@ -301,15 +302,15 @@ def mp3():
 def playlist():
     url = request.form["url"]
 
-    ydl_opts = {
+    ydl_opts = get_ydl_opts({
         'format': 'bestvideo+bestaudio/best',
         'outtmpl': '%(playlist_title)s/%(title)s.%(ext)s'
-    }
+    })
 
     with yt_dlp.YoutubeDL(ydl_opts) as ydl:
         ydl.download([url])
 
-    return "Playlist download started (check server)"
+    return "Playlist download started (server-side)"
 
 
 # ================= RUN =================
