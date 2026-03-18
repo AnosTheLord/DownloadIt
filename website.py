@@ -20,13 +20,22 @@ def detect_platform(url):
         return "Unknown ❌ Not Supported"
 
 
-# ================= HELPER (COOKIES SAFE MODE) =================
+# ================= HELPER (COOKIES + BYPASS) =================
 def get_ydl_opts(base_opts):
     """
-    Adds cookies.txt automatically if present
+    Adds cookies.txt + android bypass automatically
     """
+    # Add cookies if available
     if os.path.exists("cookies.txt"):
         base_opts["cookiefile"] = "cookies.txt"
+
+    # Android client bypass (VERY IMPORTANT)
+    base_opts["extractor_args"] = {
+        "youtube": {
+            "player_client": ["android"]
+        }
+    }
+
     return base_opts
 
 
@@ -254,13 +263,13 @@ def video():
     quality = request.form["quality"]
 
     if quality == "720":
-        fmt = "bestvideo[height<=720]+bestaudio/best"
+        fmt = "best[height<=720]"
     elif quality == "1080":
-        fmt = "bestvideo[height<=1080]+bestaudio/best"
+        fmt = "best[height<=1080]"
     elif quality == "4k":
-        fmt = "bestvideo[height<=2160]+bestaudio/best"
+        fmt = "best[height<=2160]"
     else:
-        fmt = "bestvideo+bestaudio/best"
+        fmt = "best"
 
     filename = "video.mp4"
 
@@ -303,7 +312,7 @@ def playlist():
     url = request.form["url"]
 
     ydl_opts = get_ydl_opts({
-        'format': 'bestvideo+bestaudio/best',
+        'format': 'best',
         'outtmpl': '%(playlist_title)s/%(title)s.%(ext)s'
     })
 
