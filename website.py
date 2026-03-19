@@ -1,8 +1,56 @@
 from flask import Flask, request, send_file
 import yt_dlp
 import os
+import uuid
+import re
 
 app = Flask(__name__)
+
+DOWNLOAD_FOLDER = "downloads"
+os.makedirs(DOWNLOAD_FOLDER, exist_ok=True)
+
+# ================= CLEAN TITLE =================
+def clean_title(title):
+    return re.sub(r'[\\/*?:"<>|]', "", title)
+
+
+# ================= COOKIE SYSTEM =================
+def get_cookie_file():
+    if os.path.exists("cookies.txt"):
+        return "cookies.txt"
+    return None
+
+
+def get_ydl_opts(format_string, output_path):
+    opts = {
+        'format': format_string,
+        'outtmpl': output_path,
+        'restrictfilenames': True
+    }
+
+    cookie_file = get_cookie_file()
+
+    if cookie_file:
+        opts['cookiefile'] = cookie_file
+
+    return opts
+
+
+def download_with_fallback(url, ydl_opts):
+    try:
+        with yt_dlp.YoutubeDL(ydl_opts) as ydl:
+            info = ydl.extract_info(url, download=True)
+            filename = ydl.prepare_filename(info)
+            return info, filename
+    except:
+        # Retry without cookies
+        ydl_opts.pop('cookiefile', None)
+
+        with yt_dlp.YoutubeDL(ydl_opts) as ydl:
+            info = ydl.extract_info(url, download=True)
+            filename = ydl.prepare_filename(info)
+            return info, filename
+
 
 # ================= PLATFORM DETECTION =================
 def detect_platform(url):
@@ -11,32 +59,13 @@ def detect_platform(url):
     if "youtube.com" in url or "youtu.be" in url:
         return "YouTube ✅ Supported"
     elif "instagram.com" in url:
-        return "Instagram ⚠️ Limited Support"
+        return "Instagram 🔐 Cookies Used"
     elif "facebook.com" in url:
-        return "Facebook ✅ Supported"
+        return "Facebook 🔐 Cookies Used"
     elif "twitter.com" in url or "x.com" in url:
-        return "Twitter/X ✅ Supported"
+        return "Twitter/X 🔐 Cookies Used"
     else:
-        return "Unknown ❌ Not Supported"
-
-
-# ================= HELPER (COOKIES + BYPASS) =================
-def get_ydl_opts(base_opts):
-    """
-    Adds cookies.txt + android bypass automatically
-    """
-    # Add cookies if available
-    if os.path.exists("cookies.txt"):
-        base_opts["cookiefile"] = "cookies.txt"
-
-    # Android client bypass (VERY IMPORTANT)
-    base_opts["extractor_args"] = {
-        "youtube": {
-            "player_client": ["android"]
-        }
-    }
-
-    return base_opts
+        return "Unknown ❌"
 
 
 # ================= WEBSITE =================
@@ -60,7 +89,6 @@ background:#020617;
 padding:15px 30px;
 display:flex;
 justify-content:space-between;
-align-items:center;
 }
 
 .logo{
@@ -69,60 +97,29 @@ font-weight:bold;
 color:#38bdf8;
 }
 
-.tagline{
-font-size:14px;
-opacity:0.7;
-}
-
 .header{
-padding:20px;
 text-align:center;
+padding:20px;
 font-size:28px;
-font-weight:bold;
-}
-
-.nav{
-display:flex;
-justify-content:center;
-gap:20px;
-margin-bottom:20px;
-}
-
-.nav button{
-padding:10px 20px;
-border:none;
-border-radius:6px;
-cursor:pointer;
-background:#334155;
-color:white;
-}
-
-.nav button:hover{
-background:#38bdf8;
 }
 
 .section{
-display:none;
 background:#1e293b;
-width:420px;
+width:400px;
 margin:20px auto;
 padding:30px;
 border-radius:12px;
 }
 
-.active{
-display:block;
-}
-
-input{
+input, select{
 width:100%;
-padding:12px;
+padding:10px;
 margin-top:10px;
-border:none;
 border-radius:6px;
+border:none;
 }
 
-.download-btn{
+button{
 margin-top:10px;
 padding:12px;
 width:100%;
@@ -130,40 +127,10 @@ background:#38bdf8;
 border:none;
 border-radius:6px;
 cursor:pointer;
-font-weight:bold;
-}
-
-.download-btn:hover{
-background:#0ea5e9;
-}
-
-select{
-width:100%;
-padding:10px;
-margin-top:10px;
-border-radius:6px;
-}
-
-.footer{
-position:fixed;
-bottom:0;
-width:100%;
-background:#020617;
-padding:10px;
-text-align:center;
-font-size:14px;
-opacity:0.8;
 }
 </style>
 
 <script>
-function showTab(id){
-document.getElementById("video").classList.remove("active");
-document.getElementById("mp3").classList.remove("active");
-document.getElementById("playlist").classList.remove("active");
-document.getElementById(id).classList.add("active");
-}
-
 function checkLink(){
 let url = document.getElementById("url").value;
 
@@ -173,9 +140,7 @@ headers: {"Content-Type": "application/x-www-form-urlencoded"},
 body: "url=" + encodeURIComponent(url)
 })
 .then(res => res.text())
-.then(data => {
-alert(data);
-});
+.then(data => alert(data));
 }
 </script>
 
@@ -185,29 +150,16 @@ alert(data);
 
 <div class="navbar">
 <div class="logo">🚀 DownloadIt</div>
-<div class="tagline">Fast • Free • Smart Downloader</div>
 </div>
 
-<div class="header">
-Download Videos Easily ⚡
-</div>
+<div class="header">Download Videos Easily ⚡</div>
 
-<div class="nav">
-<button onclick="showTab('video')">Video</button>
-<button onclick="showTab('mp3')">MP3</button>
-<button onclick="showTab('playlist')">Playlist</button>
-</div>
-
-<!-- VIDEO -->
-<div id="video" class="section active">
-<h3>Download Video</h3>
-
+<div class="section">
 <form action="/download_video" method="post">
+
 <input id="url" name="url" placeholder="Paste video link">
 
-<button type="button" onclick="checkLink()" class="download-btn">
-Check Link
-</button>
+<button type="button" onclick="checkLink()">Check Link</button>
 
 <select name="quality">
 <option value="best">Best</option>
@@ -216,32 +168,16 @@ Check Link
 <option value="4k">4K</option>
 </select>
 
-<button class="download-btn">Download Video</button>
+<button>Download Video</button>
+
 </form>
 </div>
 
-<!-- MP3 -->
-<div id="mp3" class="section">
-<h3>Convert to MP3</h3>
-
+<div class="section">
 <form action="/download_mp3" method="post">
 <input name="url" placeholder="Paste video link">
-<button class="download-btn">Download MP3</button>
+<button>Download MP3</button>
 </form>
-</div>
-
-<!-- PLAYLIST -->
-<div id="playlist" class="section">
-<h3>Download Playlist</h3>
-
-<form action="/download_playlist" method="post">
-<input name="url" placeholder="Paste playlist link">
-<button class="download-btn">Download Playlist</button>
-</form>
-</div>
-
-<div class="footer">
-Made by Sagar ⚡ | DownloadIt © 2026
 </div>
 
 </body>
@@ -256,32 +192,40 @@ def check():
     return detect_platform(url)
 
 
-# ================= VIDEO DOWNLOAD =================
+# ================= VIDEO =================
 @app.route("/download_video", methods=["POST"])
 def video():
     url = request.form["url"]
     quality = request.form["quality"]
 
     if quality == "720":
-        fmt = "best[height<=720]"
+        fmt = "bestvideo[height<=720]+bestaudio/best"
     elif quality == "1080":
-        fmt = "best[height<=1080]"
+        fmt = "bestvideo[height<=1080]+bestaudio/best"
     elif quality == "4k":
-        fmt = "best[height<=2160]"
+        fmt = "bestvideo[height<=2160]+bestaudio/best"
     else:
-        fmt = "best"
+        fmt = "bestvideo+bestaudio/best"
 
-    filename = "video.mp4"
+    unique_id = str(uuid.uuid4())
+    filepath = f"{DOWNLOAD_FOLDER}/{unique_id}_%(title)s.%(ext)s"
 
-    ydl_opts = get_ydl_opts({
-        'format': fmt,
-        'outtmpl': filename
-    })
+    ydl_opts = get_ydl_opts(fmt, filepath)
 
-    with yt_dlp.YoutubeDL(ydl_opts) as ydl:
-        ydl.download([url])
+    info, filename = download_with_fallback(url, ydl_opts)
 
-    return send_file(filename, as_attachment=True)
+    title = clean_title(info.get("title", "video"))
+    ext = filename.split(".")[-1]
+    final_name = f"{title}.{ext}"
+
+    response = send_file(filename, as_attachment=True, download_name=final_name)
+
+    try:
+        os.remove(filename)
+    except:
+        pass
+
+    return response
 
 
 # ================= MP3 =================
@@ -289,37 +233,37 @@ def video():
 def mp3():
     url = request.form["url"]
 
-    filename = "audio.mp3"
+    unique_id = str(uuid.uuid4())
+    filepath = f"{DOWNLOAD_FOLDER}/{unique_id}_%(title)s.%(ext)s"
 
-    ydl_opts = get_ydl_opts({
+    ydl_opts = {
         'format': 'bestaudio',
-        'outtmpl': 'audio.%(ext)s',
+        'outtmpl': filepath,
         'postprocessors': [{
             'key': 'FFmpegExtractAudio',
             'preferredcodec': 'mp3'
-        }]
-    })
+        }],
+        'restrictfilenames': True
+    }
 
-    with yt_dlp.YoutubeDL(ydl_opts) as ydl:
-        ydl.download([url])
+    cookie_file = get_cookie_file()
+    if cookie_file:
+        ydl_opts['cookiefile'] = cookie_file
 
-    return send_file(filename, as_attachment=True)
+    info, filename = download_with_fallback(url, ydl_opts)
+    filename = filename.rsplit(".",1)[0] + ".mp3"
 
+    title = clean_title(info.get("title", "audio"))
+    final_name = f"{title}.mp3"
 
-# ================= PLAYLIST =================
-@app.route("/download_playlist", methods=["POST"])
-def playlist():
-    url = request.form["url"]
+    response = send_file(filename, as_attachment=True, download_name=final_name)
 
-    ydl_opts = get_ydl_opts({
-        'format': 'best',
-        'outtmpl': '%(playlist_title)s/%(title)s.%(ext)s'
-    })
+    try:
+        os.remove(filename)
+    except:
+        pass
 
-    with yt_dlp.YoutubeDL(ydl_opts) as ydl:
-        ydl.download([url])
-
-    return "Playlist download started (server-side)"
+    return response
 
 
 # ================= RUN =================
